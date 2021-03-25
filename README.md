@@ -12,7 +12,7 @@ Open up the Arduino IDE and go to File->Preferences.
 
 In the dialog that pops up, enter the following URL in the "Additional Boards Manager URLs" field:
 
-https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+https://github.com/wemakerspace/arduino-pico/releases/download/0.9.4/package_rp2040_index.json
 
 ![image](https://user-images.githubusercontent.com/11875/111917251-3c57f400-8a3c-11eb-8120-810a8328ab3f.png)
 
@@ -24,20 +24,6 @@ Type "pico" in the search box and select "Add":
 
 ![image](https://user-images.githubusercontent.com/11875/111917223-12063680-8a3c-11eb-8884-4f32b8f0feb1.png)
 
-# Installing via GIT
-To install via GIT (for latest and greatest versions):
-````
-mkdir -p ~/Arduino/hardware/pico
-git clone https://github.com/earlephilhower/arduino-pico.git ~/Arduino/hardware/pico/rp2040
-cd ~/Arduino/hardware/pico/rp2040
-git submodule init
-git submodule update
-cd pico-sdk
-git submodule init
-git submodule update
-cd ../tools
-python3 ./get.py
-`````
 
 # Uploading Sketches
 To upload your first sketch, you will need to hold the BOOTSEL button down while plugging in the Pico to your computer.
@@ -52,6 +38,9 @@ In some cases the Pico will encounter a hard hang and its USB port will not resp
 follow the initial procedure of holding the BOOTSEL button down while plugging in the Pico to enter the ROM bootloader.
 
 # Status of Port
+Added support for Cytron Maker Pico (UART0 Change from GP00,GP01 to GP16,GP17)
+Added Blynk support
+
 Lots of things are working now!
 * digitalWrite/Read (basic sanity tested)
 * shiftIn/Out (tested using Nokia5110 https://github.com/ionpan/Nokia5110)
