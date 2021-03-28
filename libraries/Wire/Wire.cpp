@@ -24,6 +24,8 @@
 #include <Arduino.h>
 #include <hardware/gpio.h>
 #include <hardware/i2c.h>
+#include <hardware/irq.h>
+#include <hardware/regs/intctrl.h>
 #include "Wire.h"
 
 TwoWire::TwoWire(i2c_inst_t *i2c, pin_size_t sda, pin_size_t scl) {
@@ -31,25 +33,35 @@ TwoWire::TwoWire(i2c_inst_t *i2c, pin_size_t sda, pin_size_t scl) {
     _scl = scl;
     _i2c = i2c;
     _clkHz = TWI_CLOCK;
-    _begun = false;
+    _running = false;
     _txBegun = false;
     _buffLen = 0;
 }
 
 bool TwoWire::setSDA(pin_size_t pin) {
-    if (sdaAllowed(pin)) {
+    constexpr uint32_t valid[2] = { __bitset({0, 4, 8, 12, 16, 20, 24, 28}) /* I2C0 */,
+                                    __bitset({2, 6, 10, 14, 18, 22, 26})  /* I2C1 */};
+    if (_running) {
+        return false;
+    } else if ((1 << pin) & valid[i2c_hw_index(_i2c)]) {
         _sda = pin;
         return true;
+    } else {
+        return false;
     }
-    return false;
 }
 
 bool TwoWire::setSCL(pin_size_t pin) {
-    if (sclAllowed(pin)) {
+    constexpr uint32_t valid[2] = { __bitset({1, 5, 9, 13, 17, 21, 25, 29}) /* I2C0 */,
+                                    __bitset({3, 7, 11, 15, 19, 23, 27})  /* I2C1 */};
+    if (_running) {
+        return false;
+    } else if ((1 << pin) & valid[i2c_hw_index(_i2c)]) {
         _scl = pin;
         return true;
+    } else {
+        return false;
     }
-    return false;
 }
 
 void TwoWire::setClock(uint32_t hz) {
@@ -58,7 +70,7 @@ void TwoWire::setClock(uint32_t hz) {
 
 // Master mode
 void TwoWire::begin() {
-    if (_begun) {
+    if (_running) {
         // ERROR
         return;
     }
@@ -70,42 +82,90 @@ void TwoWire::begin() {
     gpio_set_function(_scl, GPIO_FUNC_I2C);
     gpio_pull_up(_scl);
 
-    _begun = true;
+    _running = true;
     _txBegun = false;
     _buffLen = 0;
 }
 
+static void _handler0() {
+    Wire.onIRQ();
+}
+
+static void _handler1() {
+    Wire1.onIRQ();
+}
+
 // Slave mode
 void TwoWire::begin(uint8_t addr) {
-    // Slave mode isn't documented in the SDK, need to twiddle raw registers
-    // and use bare interrupts.  TODO to implement, for now.
-#if 0
-    if (_begun) {
+    if (_running) {
         // ERROR
         return;
     }
     _slave = true;
     i2c_init(_i2c, _clkHz);
     i2c_set_slave_mode(_i2c, true, addr);
+
+    // Our callback IRQ
+    _i2c->hw->intr_mask = (1<<10) | (1<<9) | (1<<5)| (1<<2);
+
+    int irqNo = I2C0_IRQ + i2c_hw_index(_i2c);
+    irq_set_exclusive_handler(irqNo, i2c_hw_index(_i2c) == 0 ? _handler0 : _handler1);
+    irq_set_enabled(irqNo, true);
+
+
     gpio_set_function(_sda, GPIO_FUNC_I2C);
     gpio_pull_up(_sda);
     gpio_set_function(_scl, GPIO_FUNC_I2C);
     gpio_pull_up(_scl);
-#endif
+
+    _running = true;
+}
+
+void TwoWire::onIRQ() {
+    if (_i2c->hw->intr_stat & (1<<10)) {
+        _buffLen = 0;
+        _buffOff = 0;
+        _slaveStartDet = true;
+        _i2c->hw->clr_start_det;
+    }
+    if (_i2c->hw->intr_stat & (1<<9)) {
+        if (_onReceiveCallback) {
+            _onReceiveCallback(_buffLen);
+        }
+        _buffLen = 0;
+         _buffOff = 0;
+        _slaveStartDet = false;
+        _i2c->hw->clr_stop_det;
+    }
+    if (_i2c->hw->intr_stat & (1<<5)) {
+        // RD_REQ
+        if (_onRequestCallback) {
+            _onRequestCallback();
+        }
+        _i2c->hw->clr_rd_req;
+    }
+    if (_i2c->hw->intr_stat & (1<<2)) {
+        // RX_FULL
+        if (_slaveStartDet && (_buffLen < sizeof(_buff))) {
+            _buff[_buffLen++] = _i2c->hw->data_cmd & 0xff;
+        } else {
+            _i2c->hw->data_cmd;
+        }
+    }
 }
 
 void TwoWire::end() {
-    if (!_begun) {
+    if (!_running) {
         // ERROR
         return;
     }
     i2c_deinit(_i2c);
-    _begun = false;
+    _running = false;
     _txBegun = false;
 }
 
 void TwoWire::beginTransmission(uint8_t addr) {
-    if (!_begun || _txBegun) {
+    if (!_running || _txBegun) {
         // ERROR
         return;
     }
@@ -114,67 +174,76 @@ void TwoWire::beginTransmission(uint8_t addr) {
     _txBegun = true;
 }
 
-bool TwoWire::sdaAllowed(pin_size_t pin) {
-    switch (i2c_hw_index(_i2c)) {
-        case 0:
-            switch (pin) {
-                case 0:
-                case 4:
-                case 16:
-                case 20:
-                    return true;
-            }
-            break;
-        case 1:
-            switch (pin) {
-                case 8:
-                case 12:
-                case 24:
-                case 28:
-                    return true;
-            }
-            break;
-    }
-    return false;
-}
-
-bool TwoWire::sclAllowed(pin_size_t pin) {
-    switch (i2c_hw_index(_i2c)) {
-        case 0:
-            switch (pin) {
-                case 1:
-                case 5:
-                case 17:
-                case 21:
-                    return true;
-            }
-            break;
-        case 1:
-            switch (pin) {
-                case 9:
-                case 13:
-                case 25:
-                case 29:
-                    return true;
-            }
-            break;
-    }
-    return false;
-}
-
 size_t TwoWire::requestFrom(uint8_t address, size_t quantity, bool stopBit) {
-    if (!_begun || _txBegun || !quantity || (quantity > sizeof(_buff))) {
+    if (!_running || _txBegun || !quantity || (quantity > sizeof(_buff))) {
         return 0;
     }
 
     size_t byteRead = 0;
-    _buffLen = i2c_read_blocking(_i2c, address, _buff, quantity, !stopBit);
+    _buffLen = i2c_read_blocking_until(_i2c, address, _buff, quantity, !stopBit, make_timeout_time_ms(50));
     _buffOff = 0;
     return _buffLen;
 }
 
 size_t TwoWire::requestFrom(uint8_t address, size_t quantity) {
     return requestFrom(address, quantity, true);
+}
+
+static bool _clockStretch(pin_size_t pin) {
+    auto end = time_us_64() + 100;
+    while ((time_us_64() < end) && (!digitalRead(pin))) { /* noop */ }
+    return digitalRead(pin);
+}
+
+bool _probe(int addr, pin_size_t sda, pin_size_t scl, int freq) {
+    int delay = (1000000 / freq) / 2;
+    bool ack = false;
+
+    pinMode(sda, INPUT_PULLUP);
+    pinMode(scl, INPUT_PULLUP);
+    gpio_set_function(scl, GPIO_FUNC_SIO);
+    gpio_set_function(sda, GPIO_FUNC_SIO);
+
+    digitalWrite(sda, HIGH);
+    sleep_us(delay);
+    digitalWrite(scl, HIGH);
+    if (!_clockStretch(scl)) goto stop;
+    digitalWrite(sda, LOW);
+    sleep_us(delay);
+    digitalWrite(scl, LOW);
+    sleep_us(delay);
+    for (int i=0; i<8; i++) {
+        addr <<= 1;
+        digitalWrite(sda, (addr & (1<<7)) ? HIGH : LOW);
+        sleep_us(delay);
+        digitalWrite(scl, HIGH);
+        sleep_us(delay);
+        if (!_clockStretch(scl)) goto stop;
+        digitalWrite(scl, LOW);
+        sleep_us(5); // Ensure we don't change too close to clock edge
+    }
+
+    digitalWrite(sda, HIGH);
+    sleep_us(delay);
+    digitalWrite(scl, HIGH);
+    if (!_clockStretch(scl)) goto stop;
+
+    ack = digitalRead(sda) == LOW;
+    sleep_us(delay);
+    digitalWrite(scl, LOW);
+
+stop:
+    sleep_us(delay);
+    digitalWrite(sda, LOW);
+    sleep_us(delay);
+    digitalWrite(scl, HIGH);
+    sleep_us(delay);
+    digitalWrite(sda, HIGH);
+    sleep_us(delay);
+    gpio_set_function(scl, GPIO_FUNC_I2C);
+    gpio_set_function(sda, GPIO_FUNC_I2C);
+
+    return ack;
 }
 
 // Errors:
@@ -184,14 +253,19 @@ size_t TwoWire::requestFrom(uint8_t address, size_t quantity) {
 //  3 : NACK on transmit of data
 //  4 : Other error
 uint8_t TwoWire::endTransmission(bool stopBit) {
-    if (!_begun || !_txBegun || !_buffLen) {
+    if (!_running || !_txBegun) {
         return 4; 
     }
-    auto len = _buffLen;
-    auto ret = i2c_write_blocking(_i2c, _addr, _buff, _buffLen, !stopBit);
-    _buffLen = 0;
     _txBegun = false;
-    return (ret == len) ? 0 : 4;
+    if (!_buffLen) {
+        // Special-case 0-len writes which are used for I2C probing
+        return _probe(_addr, _sda, _scl, _clkHz) ? 0 : 2;
+    } else {
+        auto len = _buffLen;
+        auto ret = i2c_write_blocking_until(_i2c, _addr, _buff, _buffLen, !stopBit, make_timeout_time_ms(50));
+        _buffLen = 0;
+        return (ret == len) ? 0 : 4;
+    }
 }
 
 uint8_t TwoWire::endTransmission() {
@@ -199,11 +273,22 @@ uint8_t TwoWire::endTransmission() {
 }
 
 size_t TwoWire::write(uint8_t ucData) {
-    if (!_begun || !_txBegun || (_buffLen == sizeof(_buff))) {
+    if (!_running) {
         return 0;
     }
-    _buff[_buffLen++] = ucData;
-    return 1 ;
+
+    if (_slave) {
+        // Wait for a spot in the TX FIFO
+        while (0 == _i2c->hw->status & (1<<1)) { /* noop wait */ }
+        _i2c->hw->data_cmd = ucData;
+        return 1;
+    } else {
+        if (!_txBegun || (_buffLen == sizeof(_buff))) {
+            return 0;
+        }
+        _buff[_buffLen++] = ucData;
+        return 1 ;
+    }
 }
 
 size_t TwoWire::write(const uint8_t *data, size_t quantity) {
@@ -217,7 +302,7 @@ size_t TwoWire::write(const uint8_t *data, size_t quantity) {
 }
 
 int TwoWire::available(void) {
-    return _begun  ? _buffLen - _buffOff : 0;
+    return _running  ? _buffLen - _buffOff : 0;
 }
 
 int TwoWire::read(void) {
@@ -251,5 +336,4 @@ void TwoWire::onRequest(void(*function)(void))
 }
 
 TwoWire Wire(i2c0, 0, 1);
-TwoWire Wire1(i2c1, 4, 5);
-
+TwoWire Wire1(i2c1, 2, 3);

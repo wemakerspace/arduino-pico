@@ -24,10 +24,21 @@ extern void setup();
 extern void loop();
 
 extern "C" int main() {
+#if defined DEBUG_RP2040_PORT
     DEBUG_RP2040_PORT.begin();
+#endif
     setup();
     while (1) {
         loop();
+        if (arduino::serialEventRun) {
+            arduino::serialEventRun();
+        }
+        if (arduino::serialEvent1Run) {
+            arduino::serialEvent1Run();
+        }
+        if (arduino::serialEvent2Run) {
+            arduino::serialEvent2Run();
+        }
     }
     return 0;
 }
@@ -50,7 +61,11 @@ extern "C" int main() {
 extern "C" int errno;
 
 extern "C" ssize_t _write(int fd, const void *buf, size_t count) {
+#if defined DEBUG_RP2040_PORT
     return DEBUG_RP2040_PORT.write((const char *)buf, count);
+#else
+    return 0;
+#endif
 }
 
 extern "C" int _chown (const char *path, uid_t owner, gid_t group) {

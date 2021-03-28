@@ -1,4 +1,7 @@
-# Arduino-Pico
+# Arduino-Pico [![Join the chat at https://gitter.im/arduino-pico/community](https://badges.gitter.im/arduino-pico/community.svg)](https://gitter.im/arduino-pico/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+
+
 Raspberry Pi Pico Arduino core, for all RP2040 boards
 
 This is a port of the RP2040 (Raspberry Pi Pico processor) to the Arduino ecosystem.
@@ -8,6 +11,13 @@ It uses a custom toolset with GCC 10.2 and Newlib 4.0.0, not depending on system
 There is automated discovery of boards in bootloader mode, so they show up in the IDE, and the upload command works using the Microsoft UF2 tool (included).
 
 # Installing via Arduino Boards Manager
+**Windows Users**: Please do not use the Windows Store version of the actual Arduino application
+because it has issues detecting attached Pico boards.  Use the "Windows ZIP" or plain "Windows"
+executable (EXE)  download direct from https://arduino.cc. and allow it to install any device
+drivers it suggests.  Otherwise the Pico board may not be detected.  Also, if trying out the
+2.0 beta Arduino please install the release 1.8 version beforehand to ensure needed device drivers
+are present.  (See #20 for more details.)
+
 Open up the Arduino IDE and go to File->Preferences.
 
 In the dialog that pops up, enter the following URL in the "Additional Boards Manager URLs" field:
@@ -24,6 +34,11 @@ Type "pico" in the search box and select "Add":
 
 ![image](https://user-images.githubusercontent.com/11875/111917223-12063680-8a3c-11eb-8884-4f32b8f0feb1.png)
 
+
+# Installing both Arduino and CMake
+Tom's Hardware presented a very nice writeup on installing `arduino-pico` on both Windows and Linux, available at https://www.tomshardware.com/how-to/program-raspberry-pi-pico-with-arduino-ide
+
+If you follow Les' step-by-step you will also have a fully functional `CMake`-based environment to build Pico apps on if you outgrow the Arduino ecosystem.
 
 # Uploading Sketches
 To upload your first sketch, you will need to hold the BOOTSEL button down while plugging in the Pico to your computer.
@@ -89,6 +104,10 @@ Some major features I want to add are:
 * Installable filesystem support (SD, LittleFS, etc.)
 * Updated debug infrastructure
 * I2S port from pico-extras
+
+# Tutorials from Across the Web
+Here are some links to coverage and additional tutorials for using `arduino-pico`
+* Arduino Support for the Pi Pico available! And how fast is the Pico? - https://youtu.be/-XHh17cuH5E
 
 # Contributing
 If you want to contribute or have bugfixes, drop me a note at <earlephilhower@yahoo.com> or open an issue/PR here.

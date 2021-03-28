@@ -19,29 +19,50 @@
  */
 
 #include "SerialUART.h"
+#include "CoreMutex.h"
 #include <hardware/uart.h>
 #include <hardware/gpio.h>
 
-bool SerialUART::setPinout(pin_size_t tx, pin_size_t rx) {
-    const uint32_t uart_tx[2] = { 0b000010001000000000001000100000, 0b100000000000100010000000000010 };
-    const uint32_t uart_rx[2] = { 0b000001000100000000000100010000, 0b010000000000010001000000000001 };
-    if ( ((1 << tx) & uart_tx[uart_get_index(_uart)]) &&
-        ((1 << rx) & uart_rx[uart_get_index(_uart)]) ) {
-        if (_running) {
-            pinMode(_tx, INPUT);
-            pinMode(_rx, INPUT);
-        }
-        _tx = tx;
+// SerialEvent functions are weak, so when the user doesn't define them,
+// the linker just sets their address to 0 (which is checked below).
+// The Serialx_available is just a wrapper around Serialx.available(),
+// but we can refer to it weakly so we don't pull in the entire
+// HardwareSerial instance if the user doesn't also refer to it.
+extern void serialEvent1() __attribute__((weak));
+extern void serialEvent2() __attribute__((weak));
+
+bool SerialUART::setRX(pin_size_t rx) {
+    constexpr uint32_t valid[2] = { __bitset({1, 13, 17, 29}) /* UART0 */,
+                                    __bitset({5, 9, 21, 25})  /* UART1 */};
+    if (_running) {
+        return false;
+    } else if ((1 << rx) & valid[uart_get_index(_uart)]) {
         _rx = rx;
-        if (_running) {
-            gpio_set_function(_tx, GPIO_FUNC_UART);
-            gpio_set_function(_rx, GPIO_FUNC_UART);
-        }
         return true;
+    } else {
+        return false;
     }
-    return false;
 }
 
+bool SerialUART::setTX(pin_size_t tx) {
+    constexpr uint32_t valid[2] = { __bitset({0, 12, 16, 28}) /* UART0 */,
+                                    __bitset({4, 8, 20, 24})  /* UART1 */};
+    if (_running) {
+        return false;
+    } else if ((1 << tx) & valid[uart_get_index(_uart)]) {
+        _tx = tx;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+SerialUART::SerialUART(uart_inst_t *uart, pin_size_t tx, pin_size_t rx) {
+    _uart = uart;
+    _tx = tx;
+    _rx = rx;
+    mutex_init(&_mutex);
+}
 
 void SerialUART::begin(unsigned long baud, uint16_t config) {
     _baud = baud;
@@ -71,12 +92,16 @@ void SerialUART::begin(unsigned long baud, uint16_t config) {
 }
 
 void SerialUART::end() {
+    if (!_running) {
+        return;
+    }
     uart_deinit(_uart);
     _running = false;
 }
 
 int SerialUART::peek() {
-    if (!_running) {
+    CoreMutex m(&_mutex);
+    if (!_running || !m) {
         return -1;
     }
     if (_peek >= 0) {
@@ -87,7 +112,8 @@ int SerialUART::peek() {
 }
 
 int SerialUART::read() {
-    if (!_running) {
+    CoreMutex m(&_mutex);
+    if (!_running || !m) {
         return -1;
     }
     if (_peek >= 0) {
@@ -99,28 +125,32 @@ int SerialUART::read() {
 }
 
 int SerialUART::available() {
-    if (!_running) {
+    CoreMutex m(&_mutex);
+    if (!_running || !m) {
         return 0;
     }
     return (uart_is_readable(_uart)) ? 1 : 0;
 }
 
 int SerialUART::availableForWrite() {
-    if (!_running) {
+    CoreMutex m(&_mutex);
+    if (!_running || !m) {
         return 0;
     }
     return (uart_is_writable(_uart)) ? 1 : 0;
 }
 
 void SerialUART::flush() {
-    // TODO, must be smarter way.  Now, just sleep long enough to guarantee a full FIFO goes out (very conservative)
-    //int us_per_bit = 1 + (1000000 / _baud);
-    //delayMicroseconds(us_per_bit * 32 * 8);
+    CoreMutex m(&_mutex);
+    if (!_running || !m) {
+        return;
+    }
     uart_default_tx_wait_blocking();
 }
 
 size_t SerialUART::write(uint8_t c) {
-    if (!_running) {
+    CoreMutex m(&_mutex);
+    if (!_running || !m) {
         return 0;
     }
     uart_putc_raw(_uart, c);
@@ -128,7 +158,8 @@ size_t SerialUART::write(uint8_t c) {
 }
 
 size_t SerialUART::write(const uint8_t *p, size_t len) {
-    if (!_running) {
+    CoreMutex m(&_mutex);
+    if (!_running || !m) {
         return 0;
     }
     size_t cnt = len;
@@ -147,3 +178,14 @@ SerialUART::operator bool() {
 SerialUART Serial1(uart0, 0, 1);
 SerialUART Serial2(uart1, 4, 5);
 
+void arduino::serialEvent1Run(void) {
+    if (serialEvent1 && Serial1.available()) {
+      serialEvent1();
+    }
+}
+
+void arduino::serialEvent2Run(void) {
+    if (serialEvent2 && Serial2.available()) {
+      serialEvent2();
+    }
+}

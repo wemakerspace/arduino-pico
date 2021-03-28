@@ -28,12 +28,20 @@
 #include "api/ArduinoAPI.h"
 
 #include <pins_arduino.h>
+#define digitalPinToInterrupt(P) (P)
 
 #include "debug_internal.h"
 
 #ifdef __cplusplus
 extern "C"{
 #endif // __cplusplus
+
+void interrupts();
+void noInterrupts();
+void attachInterrupt(pin_size_t pin, voidFuncPtr callback, PinStatus mode);
+void detachInterrupt(pin_size_t pin);
+
+
 
 void pinMode(pin_size_t pinNumber, PinMode pinMode);
 
@@ -60,6 +68,13 @@ unsigned long millis();
 #include "SerialUSB.h"
 #include "SerialUART.h"
 #include "RP2040.h"
+
+// Template which will evaluate at *compile time* to a single 32b number
+// with the specified bits set.
+template <size_t N>
+constexpr uint32_t __bitset(const int (&a)[N], size_t i = 0U) {
+    return i < N ? (1L << a[i]) | __bitset(a, i+1) : 0;
+}
 #endif
 
 

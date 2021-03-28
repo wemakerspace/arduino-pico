@@ -21,18 +21,23 @@
  */
 
 #include <Arduino.h>
-
+#include "CoreMutex.h"
 
 #include "tusb.h"
 #include "pico/time.h"
 #include "pico/binary_info.h"
-extern "C" {
-    #include "pico/bootrom.h"
-}
+#include "pico/bootrom.h"
 #include "hardware/irq.h"
 #include "pico/mutex.h"
 #include "hardware/watchdog.h"
 #include "pico/unique_id.h"
+
+// SerialEvent functions are weak, so when the user doesn't define them,
+// the linker just sets their address to 0 (which is checked below).
+// The Serialx_available is just a wrapper around Serialx.available(),
+// but we can refer to it weakly so we don't pull in the entire
+// HardwareSerial instance if the user doesn't also refer to it.
+extern void serialEvent() __attribute__((weak));
 
 #define PICO_STDIO_USB_TASK_INTERVAL_US 1000
 #define PICO_STDIO_USB_LOW_PRIORITY_IRQ 31
@@ -178,70 +183,65 @@ void SerialUSB::end() {
 }
 
 int SerialUSB::peek() {
-    uint8_t c;
-    uint32_t owner;
-    if (!mutex_try_enter(&usb_mutex, &owner)) {
-        if (owner == get_core_num()) return -1; // would deadlock otherwise
-        mutex_enter_blocking(&usb_mutex);
+    CoreMutex m(&usb_mutex);
+    if (!_running || !m) {
+        return 0;
     }
-    auto ret = tud_cdc_peek(0, &c) ? (int) c : -1;
-    mutex_exit(&usb_mutex);
-    return ret;
+
+    uint8_t c;
+    return tud_cdc_peek(0, &c) ? (int) c : -1;
 }
 
 int SerialUSB::read() {
-    uint32_t owner;
-    if (!mutex_try_enter(&usb_mutex, &owner)) {
-        if (owner == get_core_num()) return -1; // would deadlock otherwise
-        mutex_enter_blocking(&usb_mutex);
+    CoreMutex m(&usb_mutex);
+    if (!_running || !m) {
+        return -1;
     }
+
     if (tud_cdc_connected() && tud_cdc_available()) {
-        int ch = tud_cdc_read_char();
-        mutex_exit(&usb_mutex);
-        return ch;
+        return tud_cdc_read_char();
     }
-    mutex_exit(&usb_mutex);
     return -1;
 }
+
 int SerialUSB::available() {
-    uint32_t owner;
-    if (!mutex_try_enter(&usb_mutex, &owner)) {
-        if (owner == get_core_num()) return 0; // would deadlock otherwise
-        mutex_enter_blocking(&usb_mutex);
+    CoreMutex m(&usb_mutex);
+    if (!_running || !m) {
+        return 0;
     }
-    auto ret = tud_cdc_available();
-    mutex_exit(&usb_mutex);
-    return ret;
+
+    return tud_cdc_available();
 }
+
 int SerialUSB::availableForWrite() {
-    uint32_t owner;
-    if (!mutex_try_enter(&usb_mutex, &owner)) {
-        if (owner == get_core_num()) return 0; // would deadlock otherwise
-        mutex_enter_blocking(&usb_mutex);
+    CoreMutex m(&usb_mutex);
+    if (!_running || !m) {
+        return 0;
     }
-    auto ret = tud_cdc_write_available();
-    mutex_exit(&usb_mutex);
-    return ret;
+
+    return tud_cdc_write_available();
 }
+
 void SerialUSB::flush() {
-    uint32_t owner;
-    if (!mutex_try_enter(&usb_mutex, &owner)) {
-        if (owner == get_core_num()) return; // would deadlock otherwise
-        mutex_enter_blocking(&usb_mutex);
+    CoreMutex m(&usb_mutex);
+    if (!_running || !m) {
+        return;
     }
+
     tud_cdc_write_flush();
-    mutex_exit(&usb_mutex);
 }
+
 size_t SerialUSB::write(uint8_t c) {
     return write(&c, 1);
 }
+
 size_t SerialUSB::write(const uint8_t *buf, size_t length) {
-    static uint64_t last_avail_time;
-    uint32_t owner;
-    if (!mutex_try_enter(&usb_mutex, &owner)) {
-        if (owner == get_core_num()) return 0; // would deadlock otherwise
-        mutex_enter_blocking(&usb_mutex);
+    CoreMutex m(&usb_mutex);
+    if (!_running || !m) {
+        return 0;
     }
+
+    static uint64_t last_avail_time;
     int i = 0;
     if (tud_cdc_connected()) {
         for (int i = 0; i < length;) {
@@ -267,19 +267,17 @@ size_t SerialUSB::write(const uint8_t *buf, size_t length) {
         // reset our timeout
         last_avail_time = 0;
     }
-    mutex_exit(&usb_mutex);
     return i;
 }
+
 SerialUSB::operator bool() {
-    uint32_t owner;
-    if (!mutex_try_enter(&usb_mutex, &owner)) {
-        if (owner == get_core_num()) return -1; // would deadlock otherwise
-        mutex_enter_blocking(&usb_mutex);
+    CoreMutex m(&usb_mutex);
+    if (!_running || !m) {
+        return false;
     }
+
     tud_task();
-    auto ret = tud_cdc_connected();
-    mutex_exit(&usb_mutex);
-    return ret;
+    return tud_cdc_connected();
 }
 
 
@@ -304,5 +302,11 @@ extern "C" void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_l
     CheckSerialReset();
 }
 
-
 SerialUSB Serial;
+
+void arduino::serialEventRun(void)
+{
+    if (serialEvent && Serial.available()) {
+      serialEvent();
+    }
+}
