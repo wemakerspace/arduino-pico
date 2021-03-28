@@ -10,6 +10,7 @@ It uses a custom toolset with GCC 10.2 and Newlib 4.0.0, not depending on system
 
 There is automated discovery of boards in bootloader mode, so they show up in the IDE, and the upload command works using the Microsoft UF2 tool (included).
 
+
 # Installing via Arduino Boards Manager
 **Windows Users**: Please do not use the Windows Store version of the actual Arduino application
 because it has issues detecting attached Pico boards.  Use the "Windows ZIP" or plain "Windows"
@@ -33,6 +34,29 @@ Go to Tools->Boards->Board Manager in the IDE
 Type "pico" in the search box and select "Add":
 
 ![image](https://user-images.githubusercontent.com/11875/111917223-12063680-8a3c-11eb-8884-4f32b8f0feb1.png)
+
+# Maker Pi Pico - ESP-01 - Blynk Example
+
+![image](https://user-images.githubusercontent.com/51473817/112761058-e54db280-902b-11eb-8dbf-244881d9a8a2.png)
+
+Maker Pi Pico is simple breakout board for Raspberry Pi Pico.
+
+There is a ESP-01 header that connect to UART0 (Pin 16, 17), you can plug in a normal ESP-01 (AT command SDK) to connect to WiFi.
+
+You can download the Maker Pi Pico Example to connect to your WiFi and Blynk Server.
+
+https://github.com/wemakerspace/arduino-pico/releases/download/global/Maker_Pi_Pico_Example_Sketch.zip
+
+Locate where is the Arduino Sketchbook folder in your Arduino Preference:
+
+![image](https://user-images.githubusercontent.com/51473817/112761298-3ca05280-902d-11eb-8862-0afde0baea52.png)
+
+Copy the example arduino sketch and Blynk libraries to the Arduino Sketchbook directory.
+
+Install the ESP-01 module accordingly to the Maker Pi Pico board.
+
+Open the Maker_Pi_Pico_Blynk_Example.ino and you should able to compile and upload to Maker Pi Pico.
+
 
 # Installing via GIT
 To install via GIT (for latest and greatest versions):
