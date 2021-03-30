@@ -36,7 +36,7 @@ Type "pico" in the search box and select "Add":
 
 # Maker Pi Pico - ESP-01 - Blynk Example
 
-![image](https://static.cytron.io/image/catalog/products/MAKER-PI-PICO-NB/MakerPiPico-PinRef-Front-rev1.2-800-lres.png)
+![image](https://user-images.githubusercontent.com/51473817/112925025-c3475380-9143-11eb-9564-7d2137f50219.png)
 
 Maker Pi Pico is simple breakout board for Raspberry Pi Pico.
 
@@ -56,6 +56,25 @@ Install the ESP-01 module accordingly to the Maker Pi Pico board.
 
 Open the Maker_Pi_Pico_Blynk_Example.ino and you should able to compile and upload to Maker Pi Pico.
 
+Plug in the ESP-01 into the Maker Pi Pico
+
+Ensure Board Selection is Raspberry Pi Pico, with debug port as `Serial` (Serial = USB CDC, Serial1 = UART0, Serial2 = UART1)
+
+Go to File -> Example -> rp2040 and select The Maker Pi Pico demo
+
+# Basic Blynk Support
+Download and register account for Blynk mobile App.
+
+Get the Blynk AUTH TOKEN from email and paste it into the example sketch.
+
+Enter your WIFI SSID and PASSWORD into the example sketch.
+
+Select GENERIC BOARD as your board in Blynk App, you can create a button on Pin 25 to test the build in LED.
+
+Select the correct Port for your Maker Pi Pico.
+
+Upload the code and open serial monitor to see the Wifi connection status.
+
 
 # Installing both Arduino and CMake
 Tom's Hardware presented a very nice writeup on installing `arduino-pico` on both Windows and Linux, available at https://www.tomshardware.com/how-to/program-raspberry-pi-pico-with-arduino-ide
@@ -73,31 +92,6 @@ Them hit the upload button and your sketch should upload and run.
 
 In some cases the Pico will encounter a hard hang and its USB port will not respond to the auto-reset request.  Should this happen, just
 follow the initial procedure of holding the BOOTSEL button down while plugging in the Pico to enter the ROM bootloader.
-
-# Maker Pi Pico
-Plug in the ESP-01 into the Maker Pi Pico
-
-Ensure Board Selection is Raspberry Pi Pico, with debug port as `Serial` (Serial = USB CDC, Serial1 = UART0, Serial2 = UART1)
-
-Go to File -> Example -> rp2040 and select The Maker Pi Pico demo
-
-Raspberry Pi Pico Pinout
-
-![image](https://user-images.githubusercontent.com/51473817/112531983-3880f480-8de3-11eb-940d-43d7d9345abb.png)
-
-# Basic Blynk Support
-Download and register account for Blynk mobile App.
-
-Get the Blynk AUTH TOKEN from email and paste it into the example sketch.
-
-Enter your WIFI SSID and PASSWORD into the example sketch.
-
-Select GENERIC BOARD as your board in Blynk App, you can create a button on Pin 25 to test the build in LED.
-
-Select the correct Port for your Maker Pi Pico.
-
-Upload the code and open serial monitor to see the Wifi connection status.
-
 
 # Status of Port
 Added support for Cytron Maker Pi Pico (UART0 Change from GP00,GP01 to GP16,GP17)
