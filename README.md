@@ -34,6 +34,28 @@ Type "pico" in the search box and select "Add":
 
 ![image](https://user-images.githubusercontent.com/11875/111917223-12063680-8a3c-11eb-8884-4f32b8f0feb1.png)
 
+# Maker Pi Pico - ESP-01 - Blynk Example
+
+![image](https://static.cytron.io/image/catalog/products/MAKER-PI-PICO-NB/MakerPiPico-PinRef-Front-rev1.2-800-lres.png)
+
+Maker Pi Pico is simple breakout board for Raspberry Pi Pico.
+
+There is a ESP-01 header that connect to UART0 (Pin 16, 17), you can plug in a normal ESP-01 (AT command SDK) to connect to WiFi.
+
+You can download the Maker Pi Pico Example to connect to your WiFi and Blynk Server.
+
+https://github.com/wemakerspace/arduino-pico/releases/download/global/Maker_Pi_Pico_Example_Sketch.zip
+
+Locate where is the Arduino Sketchbook folder in your Arduino Preference:
+
+![image](https://user-images.githubusercontent.com/51473817/112761298-3ca05280-902d-11eb-8862-0afde0baea52.png)
+
+Copy the example arduino sketch and Blynk libraries to the Arduino Sketchbook directory.
+
+Install the ESP-01 module accordingly to the Maker Pi Pico board.
+
+Open the Maker_Pi_Pico_Blynk_Example.ino and you should able to compile and upload to Maker Pi Pico.
+
 
 # Installing both Arduino and CMake
 Tom's Hardware presented a very nice writeup on installing `arduino-pico` on both Windows and Linux, available at https://www.tomshardware.com/how-to/program-raspberry-pi-pico-with-arduino-ide
